@@ -53,10 +53,13 @@ sub encrypt {
 	if ($self->encryption_type eq 'xor') {
 		# This is a custom NSCA XOR "encryption"
 		$encrypted_byte_stream = $self->_xor_encrypt($byte_stream, $iv);
+	} elsif ($self->encryption_type eq 'des') {
+		# This is a custom NSCA DES "encryption"
+		$encrypted_byte_stream = $self->_des_encrypt($byte_stream, $iv);
 	}
 	else {
 		# For now, we only do XOR
-		Moose->throw_error('At this time the only supported encryption is xor');
+		Moose->throw_error('At this time the only supported encryptions are xor and des');
 	}
 
 	# Return the encrypted byte stream
@@ -89,6 +92,27 @@ sub _xor_encrypt {
 
 	# Return the manipulated byte stream
 	return join q{}, @byte_stream;
+}
+
+sub _des_encrypt {
+	my ($self, $byte_stream, $iv) = @_;
+
+	eval {
+		require Mcrypt;
+		Mcrypt->import(qw(DES CFB));
+	};
+	if ($@) {
+		Moose->throw_error('Missing module Mcrypt for des');
+	}
+	my $td = Mcrypt -> new(
+		algorithm => DES(),
+		mode => CFB(),
+		verbose => 0,
+	);
+	my $key = $self->has_password ? $self->password : "";
+	$td -> init($key, $iv);
+	my $ciphertext = $td -> encrypt($byte_stream);
+	return $ciphertext;
 }
 
 ###############################################################################
